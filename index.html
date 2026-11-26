@@ -1,0 +1,3087 @@
+<!doctype html>
+<html lang="ko"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoasterLab — 롤러코스터 에너지 시뮬레이터</title>
+    <meta name="description" content="역학적 에너지 보존과 마찰 손실, G-Force를 실시간 트랙 설계와 물리 시뮬레이션으로 탐구하는 인터랙티브 웹 실험실">
+    <meta property="og:title" content="CoasterLab — 롤러코스터 에너지 시뮬레이터">
+    <meta property="og:description" content="역학적 에너지 보존과 마찰 손실, G-Force를 실시간 트랙 설계와 물리 시뮬레이션으로 탐구하는 인터랙티브 웹 실험실">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=Outfit:wght@500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-display: "Outfit", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+        --bg-canvas: #f8fafc;
+        --bg-surface: #ffffff;
+        --bg-subtle: #f1f5f9;
+        --border-hairline: #e2e8f0;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --text-faint: #94a3b8;
+
+        --accent-blue: #2563eb;
+        --accent-blue-hover: #1d4ed8;
+        --accent-amber: #d97706;
+        --accent-rose: #dc2626;
+        --accent-emerald: #059669;
+        --accent-cyan: #0e7490;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-canvas);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+      }
+
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--accent-blue);
+        outline-offset: 2px;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Top Bar (3-zone contract) */
+      .top-bar {
+        height: 56px;
+        padding: 0 24px;
+        background: var(--bg-surface);
+        border-bottom: 1px solid var(--border-hairline);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        flex-shrink: 0;
+      }
+
+      .brand-wordmark {
+        font-family: var(--font-display);
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+        text-decoration: none;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .preset-nav {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        overflow-x: auto;
+      }
+
+      .preset-tab {
+        padding: 6px 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-muted);
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: color 150ms, border-color 150ms;
+      }
+
+      .preset-tab:hover {
+        color: var(--text-primary);
+      }
+
+      .preset-tab.active {
+        color: var(--text-primary);
+        border-bottom-color: var(--accent-blue);
+      }
+
+      .mission-cta {
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #ffffff;
+        background: var(--text-primary);
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background-color 150ms;
+      }
+
+      .mission-cta:hover {
+        background: #1e293b;
+      }
+
+      /* Main Split Workspace */
+      .workspace {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+
+      .stage-column {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .mobile-presets {
+        display: none;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+
+      .mobile-preset-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 6px;
+        border: 1px solid var(--border-hairline);
+        background: var(--bg-surface);
+        color: var(--text-secondary);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .mobile-preset-btn.active {
+        background: var(--text-primary);
+        color: #ffffff;
+        border-color: var(--text-primary);
+      }
+
+      /* Workspace Toolbar */
+      .toolbar {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-hairline);
+        border-radius: 8px;
+        padding: 8px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .toolbar-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #ffffff;
+        background: var(--accent-blue);
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background-color 150ms;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-blue-hover);
+      }
+
+      .btn-subtle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #334155;
+        background: var(--bg-subtle);
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background-color 150ms, color 150ms;
+      }
+
+      .btn-subtle:hover:not(:disabled) {
+        background: #e2e8f0;
+        color: var(--text-primary);
+      }
+
+      .segmented {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 2px;
+        background: var(--bg-subtle);
+        border-radius: 6px;
+      }
+
+      .seg-btn {
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        border-radius: 4px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background-color 120ms, color 120ms;
+      }
+
+      .seg-btn.mono {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .seg-btn.active {
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      }
+
+      .seg-btn.active-blue {
+        background: var(--bg-surface);
+        color: var(--accent-blue-hover);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      }
+
+      .toggle-btn {
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-hairline);
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 150ms;
+      }
+
+      .toggle-btn:hover {
+        color: var(--text-primary);
+      }
+
+      .toggle-btn.active {
+        background: var(--text-primary);
+        color: #ffffff;
+        border-color: var(--text-primary);
+      }
+
+      .toggle-btn.active-cyan {
+        background: var(--accent-cyan);
+        color: #ffffff;
+        border-color: var(--accent-cyan);
+      }
+
+      .btn-danger-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #be123c;
+        background: #fff1f2;
+        border: 1px solid #fecdd3;
+        border-radius: 6px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .btn-danger-outline:hover {
+        background: #ffe4e6;
+      }
+
+      .icon-btn {
+        padding: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-hairline);
+        border-radius: 6px;
+        flex-shrink: 0;
+      }
+
+      .icon-btn:hover {
+        color: var(--text-primary);
+        background: var(--bg-canvas);
+      }
+
+      /* Canvas Stage */
+      .canvas-wrap {
+        position: relative;
+        flex: 1;
+        min-height: 360px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-hairline);
+        border-radius: 8px;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      #track-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+      }
+
+      .status-badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 6px;
+        border: 1px solid var(--border-hairline);
+        background: rgba(255, 255, 255, 0.95);
+        color: #334155;
+        pointer-events: none;
+      }
+
+      .status-badge.running {
+        color: #1d4ed8;
+        background: #eff6ff;
+        border-color: #bfdbfe;
+      }
+
+      .status-badge.finished {
+        color: #047857;
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+      }
+
+      .status-badge.warning {
+        color: #b45309;
+        background: #fffbeb;
+        border-color: #fde68a;
+      }
+
+      .status-badge.danger {
+        color: #be123c;
+        background: #fff1f2;
+        border-color: #fecdd3;
+      }
+
+      .heatmap-legend {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 6px 10px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid var(--border-hairline);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: #334155;
+        pointer-events: none;
+      }
+
+      .heatmap-bar {
+        width: 96px;
+        height: 8px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #2563eb 0%, #0891b2 35%, #d97706 70%, #dc2626 100%);
+      }
+
+      .coord-probe {
+        position: absolute;
+        bottom: 10px;
+        left: 48px;
+        padding: 2px 8px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--border-hairline);
+        border-radius: 4px;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--text-secondary);
+        pointer-events: none;
+      }
+
+      .stage-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 4px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .stage-footer-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .stage-footer-title {
+        font-weight: 600;
+        color: #334155;
+        white-space: nowrap;
+      }
+
+      .stage-footer-desc {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .stage-footer-metrics {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+      }
+
+      /* Right Console */
+      .console-aside {
+        width: 376px;
+        flex-shrink: 0;
+        background: var(--bg-surface);
+        border-left: 1px solid var(--border-hairline);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .console-section {
+        padding: 16px;
+        border-bottom: 1px solid var(--border-hairline);
+      }
+
+      .section-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .section-meta {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+
+      .energy-stacked-bar {
+        height: 14px;
+        width: 100%;
+        background: var(--bg-subtle);
+        border: 1px solid var(--border-hairline);
+        border-radius: 4px;
+        overflow: hidden;
+        display: flex;
+        margin-bottom: 12px;
+      }
+
+      .energy-seg-ep {
+        background: #2563eb;
+      }
+      .energy-seg-ek {
+        background: #f59e0b;
+      }
+      .energy-seg-th {
+        background: #ef4444;
+      }
+
+      .energy-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .energy-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .energy-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #334155;
+      }
+
+      .swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+
+      .mono-sym {
+        font-family: var(--font-mono);
+        color: var(--text-faint);
+      }
+
+      .energy-val {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .energy-pct {
+        color: var(--text-faint);
+        margin-left: 6px;
+        display: inline-block;
+        width: 40px;
+        text-align: right;
+      }
+
+      /* 2x2 Telemetry Grid */
+      .telemetry-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border-bottom: 1px solid var(--border-hairline);
+      }
+
+      .tele-cell {
+        padding: 14px;
+        border-right: 1px solid var(--border-hairline);
+        border-bottom: 1px solid var(--border-hairline);
+      }
+
+      .tele-cell:nth-child(2n) {
+        border-right: none;
+      }
+
+      .tele-cell:nth-child(n + 3) {
+        border-bottom: none;
+      }
+
+      .tele-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-muted);
+      }
+
+      .tele-main {
+        margin-top: 4px;
+        display: flex;
+        align-items: baseline;
+        gap: 5px;
+      }
+
+      .tele-num {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .tele-unit {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-faint);
+      }
+
+      .tele-sub {
+        margin-top: 2px;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+
+      .tele-sub.state-safe {
+        font-family: var(--font-sans);
+        font-weight: 500;
+        color: var(--accent-emerald);
+      }
+      .tele-sub.state-warn {
+        font-family: var(--font-sans);
+        font-weight: 500;
+        color: var(--accent-amber);
+      }
+      .tele-sub.state-danger {
+        font-family: var(--font-sans);
+        font-weight: 500;
+        color: var(--accent-rose);
+      }
+
+      /* Chart Box */
+      .chart-box {
+        background: var(--bg-canvas);
+        border: 1px solid var(--border-hairline);
+        border-radius: 6px;
+        padding: 6px;
+      }
+
+      .chart-empty {
+        height: 128px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: var(--text-faint);
+        text-align: center;
+      }
+
+      #energy-chart-svg {
+        width: 100%;
+        height: 128px;
+        display: block;
+        overflow: visible;
+      }
+
+      /* Parameter Sliders */
+      .param-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .param-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .param-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+
+      .param-label {
+        font-weight: 500;
+        color: #334155;
+      }
+
+      .param-readout {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      input[type="range"].lab-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-hairline);
+        outline: none;
+      }
+
+      input[type="range"].lab-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--text-primary);
+        border: 2px solid #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+        cursor: pointer;
+        transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), background-color 120ms;
+      }
+
+      input[type="range"].lab-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.12);
+        background: var(--accent-blue);
+      }
+
+      input[type="range"].lab-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--text-primary);
+        border: 2px solid #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+        cursor: pointer;
+      }
+
+      .gravity-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        padding: 4px;
+        background: var(--bg-subtle);
+        border-radius: 6px;
+      }
+
+      .gravity-btn {
+        padding: 5px 4px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        border-radius: 4px;
+        white-space: nowrap;
+      }
+
+      .gravity-btn.active {
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      }
+
+      .latch-row {
+        padding-top: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .latch-sub {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .latch-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 6px;
+        border: 1px solid var(--text-primary);
+        background: var(--text-primary);
+        color: #ffffff;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .latch-btn.unlatched {
+        background: var(--bg-surface);
+        color: #be123c;
+        border-color: #fda4af;
+      }
+
+      /* Challenge Drawer */
+      .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: 420px;
+        background: var(--bg-surface);
+        border-left: 1px solid var(--border-hairline);
+        box-shadow: -8px 0 24px rgba(15, 23, 42, 0.08);
+        z-index: 30;
+        display: none;
+        flex-direction: column;
+      }
+
+      .drawer.open {
+        display: flex;
+      }
+
+      .drawer-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-hairline);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .drawer-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .drawer-subtitle {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .drawer-body {
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .mission-card {
+        padding: 20px;
+        border-bottom: 1px solid var(--border-hairline);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .mission-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .mission-name {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .mission-status {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .mission-status.passed {
+        color: #047857;
+      }
+
+      .mission-desc {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .mission-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .mission-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .mission-check.ok {
+        color: #047857;
+      }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 40;
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #ffffff;
+        background: var(--text-primary);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+        display: none;
+      }
+
+      .toast.visible {
+        display: block;
+      }
+
+      @media (min-width: 1024px) {
+        .app-shell {
+          height: 100vh;
+        }
+      }
+
+      @media (max-width: 1023px) {
+        .workspace {
+          flex-direction: column;
+        }
+        .console-aside {
+          width: 100%;
+          border-left: none;
+          border-top: 1px solid var(--border-hairline);
+          overflow-y: visible;
+        }
+        .canvas-wrap {
+          min-height: 400px;
+        }
+      }
+
+      @media (max-width: 767px) {
+        .top-bar {
+          padding: 0 16px;
+          gap: 16px;
+        }
+        .preset-nav {
+          display: none;
+        }
+        .mobile-presets {
+          display: flex;
+        }
+        .speed-group {
+          display: none;
+        }
+      }
+    </style>
+  <script src="/_aistudio-iframe.js?v=29045eb3"></script><script src="https://cdn.jsdelivr.net/npm/html2canvas-pro@2.0.4"></script><style>.aistudio-hover-highlight { box-shadow: inset 0 0 0 0.5px white, inset 0 0 0 1.5px rgba(128,128,128,0.6) !important; }.aistudio-active-highlight { outline: 2px solid #87a9ff !important; outline-offset: -2px !important; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3), inset 0 0 0 0.5px rgba(0,0,0,0.3) !important; }.aistudio-generating-blur { filter: blur(5px) grayscale(100%) brightness(28%) !important; transition: filter 0.3s ease; }#aistudio-focus-mode-tag { position: absolute; display: none; align-items: center; gap: 4px; background: #87a9ff; border-radius: 12px; z-index: 10000; padding: 8px; color: #32302c; font-family: Inter, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; line-height: 21px; pointer-events: none; }#aistudio-hover-mode-tag { position: absolute; display: none; align-items: center; gap: 4px; background: rgba(128,128,128,0.6); border-radius: 12px; z-index: 10000; padding: 8px; color: white; font-family: Inter, sans-serif; font-size: 14px; font-style: normal; font-weight: 500; line-height: 21px; pointer-events: none; }.aistudio-img-icon { display: none; vertical-align: middle; pointer-events: auto; cursor: pointer; }.aistudio-img-icon.visible { display: inline-flex; }#aistudio-focus-mode-tag .aistudio-img-icon { position: relative; width: 26px; height: 26px; background: #32302c; border-radius: 6px; margin: -4px -4px -4px 0; }#aistudio-focus-mode-tag .aistudio-img-icon::before { content: ""; position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; background-color: white; -webkit-mask-image: url("https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/edit_fix_auto/default/24px.svg"); -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; mask-image: url("https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/edit_fix_auto/default/24px.svg"); mask-size: contain; mask-repeat: no-repeat; }#aistudio-hover-mode-tag .aistudio-img-icon { position: relative; width: 18px; height: 18px; margin-left: 4px; }#aistudio-hover-mode-tag .aistudio-img-icon::before { content: ""; position: absolute; top: 0; left: 0; width: 18px; height: 18px; background-color: white; -webkit-mask-image: url("https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/edit_fix_auto/default/24px.svg"); -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; mask-image: url("https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/edit_fix_auto/default/24px.svg"); mask-size: contain; mask-repeat: no-repeat; }#aistudio-focus-mode-tag .aistudio-img-icon:hover, #aistudio-hover-mode-tag .aistudio-img-icon:hover { background: #424242 !important; }#aistudio-focus-mode-tag .aistudio-img-icon:active, #aistudio-hover-mode-tag .aistudio-img-icon:active { background: #393f51 !important; }</style></head>
+  <body>
+    <div class="app-shell">
+      <!-- Top Bar -->
+      <header class="top-bar">
+        <a href="#top" id="brand-home" class="brand-wordmark">CoasterLab</a>
+
+        <nav class="preset-nav" aria-label="트랙 프리셋" id="desktop-preset-nav"></nav>
+
+        <div>
+          <button type="button" id="toggle-challenge-btn" class="mission-cta">
+            도전 미션
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Split Workspace -->
+      <main class="workspace">
+        <div class="stage-column">
+          <!-- Mobile Preset Selector -->
+          <div class="mobile-presets" id="mobile-preset-nav"></div>
+
+          <!-- Workspace Toolbar -->
+          <div class="toolbar">
+            <div class="toolbar-group">
+              <button type="button" id="play-pause-btn" class="btn-primary"></button>
+              <button type="button" id="step-btn" class="btn-subtle" title="한 스텝 전진">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                <span>스텝</span>
+              </button>
+              <button type="button" id="reset-btn" class="btn-subtle" title="출발 위치로 초기화">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                <span>초기화</span>
+              </button>
+
+              <div class="segmented speed-group" id="speed-selector"></div>
+            </div>
+
+            <div class="toolbar-group">
+              <div class="segmented">
+                <button type="button" id="mode-observe-btn" class="seg-btn active">관찰 모드</button>
+                <button type="button" id="mode-edit-btn" class="seg-btn">트랙 편집</button>
+              </div>
+
+              <button type="button" id="delete-point-btn" class="btn-danger-outline" style="display: none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <span>포인트 삭제</span>
+              </button>
+
+              <button type="button" id="toggle-vectors-btn" class="toggle-btn active">힘·속도 벡터</button>
+              <button type="button" id="toggle-heatmap-btn" class="toggle-btn">속도 히트맵</button>
+              <button type="button" id="toggle-ghost-btn" class="toggle-btn">고스트 비교 (μ=0)</button>
+
+              <button type="button" id="export-json-btn" class="icon-btn" title="트랙 JSON 내보내기" aria-label="트랙 JSON 내보내기">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              </button>
+              <button type="button" id="import-json-btn" class="icon-btn" title="트랙 JSON 불러오기" aria-label="트랙 JSON 불러오기">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              </button>
+              <button type="button" id="download-html-btn" class="btn-subtle" title="단일 실행형 index.html 파일 다운로드">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 18v-6"></path><path d="m9 15 3 3 3-3"></path></svg>
+                <span>index.html 저장</span>
+              </button>
+              <input type="file" id="import-file-input" accept=".json,application/json" style="display: none">
+            </div>
+          </div>
+
+          <!-- Interactive Canvas -->
+          <div class="canvas-wrap" id="canvas-wrap">
+            <canvas id="track-canvas"></canvas>
+            <div id="status-badge" class="status-badge">● 준비 완료</div>
+            <div id="heatmap-legend" class="heatmap-legend" style="display: none">
+              <span>0 m/s</span>
+              <span class="heatmap-bar"></span>
+              <span id="heatmap-max-label">36 m/s</span>
+            </div>
+            <div id="coord-probe" class="coord-probe">카트 위치 x: 0.0 m · h: 0.0 m</div>
+          </div>
+
+          <!-- Track Summary Footer -->
+          <div class="stage-footer">
+            <div class="stage-footer-left">
+              <span id="preset-title" class="stage-footer-title">수직 루프</span>
+              <span aria-hidden="true">·</span>
+              <span id="preset-desc" class="stage-footer-desc"></span>
+            </div>
+            <div class="stage-footer-metrics" id="footer-metrics"></div>
+          </div>
+        </div>
+
+        <!-- Right Telemetry & Parameter Console -->
+        <aside class="console-aside">
+          <!-- Energy Distribution -->
+          <section class="console-section">
+            <div class="section-header">
+              <h2 class="section-title">실시간 에너지 분배</h2>
+              <span class="section-meta" id="total-energy-label">총 0.0 kJ</span>
+            </div>
+
+            <div class="energy-stacked-bar">
+              <div id="bar-ep" class="energy-seg-ep" style="width: 100%"></div>
+              <div id="bar-ek" class="energy-seg-ek" style="width: 0%"></div>
+              <div id="bar-th" class="energy-seg-th" style="width: 0%"></div>
+            </div>
+
+            <div class="energy-rows">
+              <div class="energy-row">
+                <span class="energy-label">
+                  <span class="swatch" style="background: #2563eb"></span>
+                  <span>위치 에너지 <span class="mono-sym">Eₚ</span></span>
+                </span>
+                <span class="energy-val" id="val-ep">0.00 kJ<span class="energy-pct">100%</span></span>
+              </div>
+              <div class="energy-row">
+                <span class="energy-label">
+                  <span class="swatch" style="background: #f59e0b"></span>
+                  <span>운동 에너지 <span class="mono-sym">Eₖ</span></span>
+                </span>
+                <span class="energy-val" id="val-ek">0.00 kJ<span class="energy-pct">0%</span></span>
+              </div>
+              <div class="energy-row">
+                <span class="energy-label">
+                  <span class="swatch" style="background: #ef4444"></span>
+                  <span>마찰 열손실 <span class="mono-sym">Eₜₕ</span></span>
+                </span>
+                <span class="energy-val" id="val-th">0.00 kJ<span class="energy-pct">0%</span></span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 2x2 Telemetry Grid -->
+          <section class="telemetry-grid">
+            <div class="tele-cell">
+              <div class="tele-label">현재 속도</div>
+              <div class="tele-main">
+                <span class="tele-num" id="tele-speed">0.0</span>
+                <span class="tele-unit">m/s</span>
+              </div>
+              <div class="tele-sub" id="tele-kmh">0.0 km/h</div>
+            </div>
+
+            <div class="tele-cell">
+              <div class="tele-label">수직 하중 (G-Force)</div>
+              <div class="tele-main">
+                <span class="tele-num" id="tele-g">1.00</span>
+                <span class="tele-unit">G</span>
+              </div>
+              <div class="tele-sub state-safe" id="tele-g-state">● 안전 범위</div>
+            </div>
+
+            <div class="tele-cell">
+              <div class="tele-label">현재 높이</div>
+              <div class="tele-main">
+                <span class="tele-num" id="tele-height">0.0</span>
+                <span class="tele-unit">m</span>
+              </div>
+              <div class="tele-sub" id="tele-normal">수직항력 0.00 kN</div>
+            </div>
+
+            <div class="tele-cell">
+              <div class="tele-label">트랙 진행 거리</div>
+              <div class="tele-main">
+                <span class="tele-num" id="tele-dist">0.0</span>
+                <span class="tele-unit">m</span>
+              </div>
+              <div class="tele-sub" id="tele-dist-total">전체 0.0 m (0%)</div>
+            </div>
+          </section>
+
+          <!-- Live Energy-Time Chart -->
+          <section class="console-section">
+            <div class="section-header">
+              <h2 class="section-title">시간별 에너지 추이</h2>
+              <span class="section-meta" id="chart-hover-label">Eₚ / Eₖ / Eₜₕ (kJ)</span>
+            </div>
+            <div class="chart-box" id="chart-box">
+              <div class="chart-empty" id="chart-empty">
+                시뮬레이션을 재생하면 실시간 에너지 그래프가 기록됩니다
+              </div>
+              <svg id="energy-chart-svg" viewBox="0 0 340 128" style="display: none"></svg>
+            </div>
+          </section>
+
+          <!-- Physics Parameters -->
+          <section class="console-section" style="border-bottom: none">
+            <div class="section-header">
+              <h2 class="section-title">물리 파라미터 설정</h2>
+              <span class="section-meta">Eₜ = mgh + ½mv² + Eₜₕ</span>
+            </div>
+
+            <div class="param-group">
+              <div class="param-item">
+                <div class="param-row">
+                  <label for="param-mass" class="param-label">카트 질량 (m)</label>
+                  <span class="param-readout" id="readout-mass">500 kg</span>
+                </div>
+                <input id="param-mass" type="range" min="100" max="2000" step="50" value="500" class="lab-slider">
+              </div>
+
+              <div class="param-item">
+                <div class="param-row">
+                  <label for="param-gravity" class="param-label">중력 가속도 (g)</label>
+                  <span class="param-readout" id="readout-gravity">9.81 m/s²</span>
+                </div>
+                <input id="param-gravity" type="range" min="1.0" max="25.0" step="0.01" value="9.81" class="lab-slider">
+                <div class="gravity-grid" id="gravity-presets"></div>
+              </div>
+
+              <div class="param-item">
+                <div class="param-row">
+                  <label for="param-friction" class="param-label">마찰 계수 (μ)</label>
+                  <span class="param-readout" id="readout-friction">0.015</span>
+                </div>
+                <input id="param-friction" type="range" min="0" max="0.12" step="0.005" value="0.015" class="lab-slider">
+              </div>
+
+              <div class="param-item">
+                <div class="param-row">
+                  <label for="param-v0" class="param-label">초기 발사 속도 (v₀)</label>
+                  <span class="param-readout" id="readout-v0">0.0 m/s</span>
+                </div>
+                <input id="param-v0" type="range" min="0" max="30" step="0.5" value="0" class="lab-slider">
+              </div>
+
+              <div class="latch-row">
+                <div>
+                  <div class="param-label" style="font-size: 12px">레일 구속 장치</div>
+                  <div class="latch-sub">해제 시 수직항력 N &lt; 0 구간에서 트랙 이탈 판정</div>
+                </div>
+                <button type="button" id="latch-btn" class="latch-btn">구속 활성</button>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </main>
+
+      <!-- Challenge Drawer -->
+      <aside class="drawer" id="challenge-drawer" aria-label="엔지니어링 도전 미션">
+        <div class="drawer-header">
+          <div>
+            <h2 class="drawer-title">엔지니어링 도전 미션</h2>
+            <p class="drawer-subtitle">트랙을 설계하고 시뮬레이션을 완주하면 실시간으로 검증됩니다</p>
+          </div>
+          <button type="button" id="close-challenge-btn" class="icon-btn" aria-label="미션 패널 닫기">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="drawer-body" id="mission-list-container"></div>
+      </aside>
+
+      <!-- Toast -->
+      <div id="toast" class="toast" role="status"></div>
+    </div>
+
+    <script>
+      (() => {
+        'use strict';
+
+        // Capture pristine standalone HTML before runtime DOM population
+        const PRISTINE_HTML = '<!doctype html>\n' + document.documentElement.outerHTML;
+
+        // ============================================================
+        // 1. Constants & Presets
+        // ============================================================
+        const WORLD_WIDTH = 162;
+        const WORLD_HEIGHT = 66;
+        const SPEED_OPTIONS = [0.25, 0.5, 1, 2];
+
+        const GRAVITY_PRESETS = [
+          { id: 'earth', label: '지구', value: 9.81 },
+          { id: 'moon', label: '달', value: 1.62 },
+          { id: 'mars', label: '화성', value: 3.72 },
+          { id: 'jupiter', label: '목성', value: 24.79 },
+        ];
+
+        const TRACK_PRESETS = {
+          'classic-hill': {
+            key: 'classic-hill',
+            label: '기본 언덕',
+            description: '위치 에너지와 운동 에너지가 교차 전환되는 기본 입문 트랙',
+            points: [
+              { id: 'ch-1', x: 6, y: 40 },
+              { id: 'ch-2', x: 22, y: 31 },
+              { id: 'ch-3', x: 42, y: 12 },
+              { id: 'ch-4', x: 62, y: 8 },
+              { id: 'ch-5', x: 82, y: 15 },
+              { id: 'ch-6', x: 100, y: 24 },
+              { id: 'ch-7', x: 118, y: 17 },
+              { id: 'ch-8', x: 136, y: 10 },
+              { id: 'ch-9', x: 154, y: 12 },
+            ],
+            recommendedParams: { friction: 0.01, initialSpeed: 0, gravity: 9.81 },
+          },
+          'double-drop': {
+            key: 'double-drop',
+            label: '더블 드롭',
+            description: '연속 급강하와 에어타임 언덕에서 최대 속도 및 음의 G-Force 관찰',
+            points: [
+              { id: 'dd-1', x: 6, y: 44 },
+              { id: 'dd-2', x: 22, y: 33 },
+              { id: 'dd-3', x: 40, y: 13 },
+              { id: 'dd-4', x: 60, y: 8 },
+              { id: 'dd-5', x: 80, y: 16 },
+              { id: 'dd-6', x: 98, y: 21 },
+              { id: 'dd-7', x: 116, y: 13 },
+              { id: 'dd-8', x: 135, y: 9 },
+              { id: 'dd-9', x: 154, y: 12 },
+            ],
+            recommendedParams: { friction: 0.015, initialSpeed: 2, gravity: 9.81 },
+          },
+          'vertical-loop': {
+            key: 'vertical-loop',
+            label: '수직 루프',
+            description: '원심력과 구심력의 균형으로 360° 루프를 통과하는 최소 높이·속도 실험',
+            points: [
+              { id: 'vl-1', x: 6, y: 46 },
+              { id: 'vl-2', x: 22, y: 34 },
+              { id: 'vl-3', x: 42, y: 13 },
+              { id: 'vl-4', x: 62, y: 7 },
+              { id: 'vl-5', x: 80, y: 8 },
+              { id: 'vl-6', x: 88, y: 18 },
+              { id: 'vl-7', x: 78, y: 28 },
+              { id: 'vl-8', x: 66, y: 18 },
+              { id: 'vl-9', x: 75, y: 7 },
+              { id: 'vl-10', x: 106, y: 8 },
+              { id: 'vl-11', x: 132, y: 13 },
+              { id: 'vl-12', x: 154, y: 13 },
+            ],
+            recommendedParams: { friction: 0.015, initialSpeed: 0, gravity: 9.81 },
+          },
+          'stall-test': {
+            key: 'stall-test',
+            label: '역주행 테스트',
+            description: '초기 위치 에너지보다 높은 언덕에 막혀 역주행(Rollback)하는 한계 실험',
+            points: [
+              { id: 'st-1', x: 8, y: 32 },
+              { id: 'st-2', x: 28, y: 22 },
+              { id: 'st-3', x: 52, y: 8 },
+              { id: 'st-4', x: 72, y: 9 },
+              { id: 'st-5', x: 96, y: 23 },
+              { id: 'st-6', x: 118, y: 42 },
+              { id: 'st-7', x: 138, y: 26 },
+              { id: 'st-8', x: 154, y: 18 },
+            ],
+            recommendedParams: { friction: 0.02, initialSpeed: 0, gravity: 9.81 },
+          },
+          custom: {
+            key: 'custom',
+            label: '자유 설계',
+            description: '컨트롤 포인트를 드래그·추가·삭제하여 나만의 트랙을 직접 제작',
+            points: [
+              { id: 'cu-1', x: 8, y: 42 },
+              { id: 'cu-2', x: 40, y: 12 },
+              { id: 'cu-3', x: 76, y: 25 },
+              { id: 'cu-4', x: 114, y: 10 },
+              { id: 'cu-5', x: 150, y: 16 },
+            ],
+            recommendedParams: { friction: 0.015, initialSpeed: 0, gravity: 9.81 },
+          },
+        };
+
+        const CHALLENGE_MISSIONS = [
+          {
+            id: 'mission-loop',
+            title: '미션 1. 마찰을 이겨내는 수직 루프',
+            summary:
+              '마찰 계수 μ = 0.020 이상, 출발 높이 48m 이하 조건에서 수직 루프를 이탈 없이 끝까지 완주하세요.',
+            recommendedPreset: 'vertical-loop',
+            evaluate: (metrics, params, points, track) => {
+              const startHeight = points[0] ? points[0].y : 0;
+              const checks = [
+                { label: '수직 루프 구간 통과', ok: track.hasLoop && metrics.passedInvertedLoop },
+                { label: `출발 높이 ≤ 48m (현재 ${startHeight.toFixed(1)}m)`, ok: startHeight <= 48.01 },
+                { label: `마찰 μ ≥ 0.020 (현재 ${params.friction.toFixed(3)})`, ok: params.friction >= 0.02 },
+                { label: '이탈 없이 트랙 완주', ok: metrics.completedTrack && !metrics.derailed },
+              ];
+              return { passed: checks.every((c) => c.ok), details: checks };
+            },
+          },
+          {
+            id: 'mission-safe-thrill',
+            title: '미션 2. 안전 기준(≤ 4.0G) 고속 주행',
+            summary:
+              '승객 안전 한계인 최대 4.0G 이하를 유지하면서 최고 속도 85 km/h 이상으로 트랙을 완주하세요.',
+            recommendedPreset: 'double-drop',
+            evaluate: (metrics) => {
+              const maxKmh = metrics.maxSpeed * 3.6;
+              const checks = [
+                { label: `최고 속도 ≥ 85 km/h (현재 ${maxKmh.toFixed(1)} km/h)`, ok: maxKmh >= 85 },
+                { label: `최대 하중 ≤ 4.00 G (현재 ${metrics.maxGForce.toFixed(2)} G)`, ok: metrics.maxGForce <= 4.0 },
+                { label: '이탈 없이 트랙 완주', ok: metrics.completedTrack && !metrics.derailed },
+              ];
+              return { passed: checks.every((c) => c.ok), details: checks };
+            },
+          },
+          {
+            id: 'mission-lunar',
+            title: '미션 3. 달 중력 자유 낙하 완주',
+            summary:
+              '달의 중력(1.62 m/s²)에서 초기 속도 0 m/s로 출발하여 길이 120m 이상의 트랙을 끝까지 완주하세요.',
+            recommendedPreset: 'classic-hill',
+            evaluate: (metrics, params, _points, track) => {
+              const checks = [
+                { label: `달 중력 g ≤ 1.65 m/s² (현재 ${params.gravity.toFixed(2)})`, ok: params.gravity <= 1.65 },
+                { label: `초기 속도 v₀ = 0 (현재 ${params.initialSpeed.toFixed(1)} m/s)`, ok: params.initialSpeed <= 0.01 },
+                {
+                  label: `트랙 길이 ≥ 120m & 완주 (현재 ${track.totalLength.toFixed(0)}m)`,
+                  ok: track.totalLength >= 120 && metrics.completedTrack && !metrics.derailed,
+                },
+              ];
+              return { passed: checks.every((c) => c.ok), details: checks };
+            },
+          },
+        ];
+
+        // ============================================================
+        // 2. Spline & Track Geometry Engine
+        // ============================================================
+        function dist(a, b) {
+          return Math.hypot(b.x - a.x, b.y - a.y);
+        }
+
+        function catmullRomPoint(p0, p1, p2, p3, u) {
+          const alpha = 0.5;
+          const eps = 1e-4;
+          const d01 = Math.max(eps, Math.pow(dist(p0, p1), alpha));
+          const d12 = Math.max(eps, Math.pow(dist(p1, p2), alpha));
+          const d23 = Math.max(eps, Math.pow(dist(p2, p3), alpha));
+
+          const t0 = 0;
+          const t1 = t0 + d01;
+          const t2 = t1 + d12;
+          const t3 = t2 + d23;
+          const t = t1 + u * (t2 - t1);
+
+          const lerpVec = (a, b, ta, tb) => {
+            const denom = tb - ta;
+            if (Math.abs(denom) < 1e-8) return a;
+            const w1 = (tb - t) / denom;
+            const w2 = (t - ta) / denom;
+            return { x: a.x * w1 + b.x * w2, y: a.y * w1 + b.y * w2 };
+          };
+
+          const A1 = lerpVec(p0, p1, t0, t1);
+          const A2 = lerpVec(p1, p2, t1, t2);
+          const A3 = lerpVec(p2, p3, t2, t3);
+          const B1 = lerpVec(A1, A2, t0, t2);
+          const B2 = lerpVec(A2, A3, t1, t3);
+          return lerpVec(B1, B2, t1, t2);
+        }
+
+        function buildTrackGeometry(points) {
+          if (points.length < 2) {
+            return {
+              samples: [],
+              totalLength: 0,
+              bounds: { minX: 0, maxX: WORLD_WIDTH, minY: 0, maxY: WORLD_HEIGHT },
+              hasLoop: false,
+            };
+          }
+
+          const first = points[0];
+          const second = points[1];
+          const last = points[points.length - 1];
+          const prevLast = points[points.length - 2];
+
+          const startPhantom = { x: 2 * first.x - second.x, y: 2 * first.y - second.y };
+          const endPhantom = { x: 2 * last.x - prevLast.x, y: 2 * last.y - prevLast.y };
+          const extended = [startPhantom, ...points, endPhantom];
+
+          const segmentCount = points.length - 1;
+          const stepsPerSegment = 90;
+          const rawPoints = [];
+
+          for (let seg = 0; seg < segmentCount; seg++) {
+            const p0 = extended[seg];
+            const p1 = extended[seg + 1];
+            const p2 = extended[seg + 2];
+            const p3 = extended[seg + 3];
+            const stepStart = seg === 0 ? 0 : 1;
+            for (let step = stepStart; step <= stepsPerSegment; step++) {
+              const pt = catmullRomPoint(p0, p1, p2, p3, step / stepsPerSegment);
+              rawPoints.push({ x: pt.x, y: Math.max(0.5, pt.y) });
+            }
+          }
+
+          const samples = [];
+          let cumulativeS = 0;
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let maxY = -Infinity;
+          let hasLoop = false;
+          const n = rawPoints.length;
+
+          for (let i = 0; i < n; i++) {
+            const curr = rawPoints[i];
+            if (i > 0) cumulativeS += dist(rawPoints[i - 1], curr);
+
+            const prev = rawPoints[Math.max(0, i - 1)];
+            const next = rawPoints[Math.min(n - 1, i + 1)];
+            const dx = next.x - prev.x;
+            const dy = next.y - prev.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const tx = dx / len;
+            const ty = dy / len;
+            if (tx < -0.25) hasLoop = true;
+
+            minX = Math.min(minX, curr.x);
+            maxX = Math.max(maxX, curr.x);
+            minY = Math.min(minY, curr.y);
+            maxY = Math.max(maxY, curr.y);
+
+            samples.push({
+              s: cumulativeS,
+              x: curr.x,
+              y: curr.y,
+              tx,
+              ty,
+              nx: -ty,
+              ny: tx,
+              curvature: 0,
+            });
+          }
+
+          for (let i = 0; i < n; i++) {
+            const s0 = samples[Math.max(0, i - 2)];
+            const s1 = samples[Math.min(n - 1, i + 2)];
+            const ds = s1.s - s0.s;
+            if (ds > 1e-4) {
+              const cross = s0.tx * s1.ty - s0.ty * s1.tx;
+              const dot = Math.max(-1, Math.min(1, s0.tx * s1.tx + s0.ty * s1.ty));
+              samples[i].curvature = Math.atan2(cross, dot) / ds;
+            }
+          }
+
+          return {
+            samples,
+            totalLength: cumulativeS,
+            bounds: { minX, maxX, minY, maxY },
+            hasLoop,
+          };
+        }
+
+        function sampleTrackAtArcLength(track, s) {
+          const { samples, totalLength } = track;
+          if (samples.length === 0) {
+            return { s: 0, x: 0, y: 0, tx: 1, ty: 0, nx: 0, ny: 1, curvature: 0 };
+          }
+          if (s <= 0) return samples[0];
+          if (s >= totalLength) return samples[samples.length - 1];
+
+          let lo = 0;
+          let hi = samples.length - 1;
+          while (lo < hi - 1) {
+            const mid = (lo + hi) >> 1;
+            if (samples[mid].s <= s) lo = mid;
+            else hi = mid;
+          }
+
+          const a = samples[lo];
+          const b = samples[hi];
+          const span = b.s - a.s;
+          const t = span > 1e-7 ? (s - a.s) / span : 0;
+          const tx = a.tx + (b.tx - a.tx) * t;
+          const ty = a.ty + (b.ty - a.ty) * t;
+          const tLen = Math.hypot(tx, ty) || 1;
+          const utx = tx / tLen;
+          const uty = ty / tLen;
+
+          return {
+            s,
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+            tx: utx,
+            ty: uty,
+            nx: -uty,
+            ny: utx,
+            curvature: a.curvature + (b.curvature - a.curvature) * t,
+          };
+        }
+
+        function findClosestArcLength(track, x, y) {
+          let bestS = 0;
+          let bestDistSq = Infinity;
+          for (const sample of track.samples) {
+            const dx = sample.x - x;
+            const dy = sample.y - y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestDistSq) {
+              bestDistSq = d2;
+              bestS = sample.s;
+            }
+          }
+          return { s: bestS, distance: Math.sqrt(bestDistSq) };
+        }
+
+        function findBestInsertIndex(points, x, y) {
+          if (points.length < 2) return points.length;
+          let bestIdx = 1;
+          let bestDist = Infinity;
+          for (let i = 0; i < points.length - 1; i++) {
+            const a = points[i];
+            const b = points[i + 1];
+            const abx = b.x - a.x;
+            const aby = b.y - a.y;
+            const abLenSq = abx * abx + aby * aby || 1;
+            const proj = Math.max(0, Math.min(1, ((x - a.x) * abx + (y - a.y) * aby) / abLenSq));
+            const d = Math.hypot(x - (a.x + proj * abx), y - (a.y + proj * aby));
+            if (d < bestDist) {
+              bestDist = d;
+              bestIdx = i + 1;
+            }
+          }
+          return bestIdx;
+        }
+
+        // ============================================================
+        // 3. RK4 Physics Integrator
+        // ============================================================
+        function computeNormalAccel(tx, curvature, v, gravity) {
+          return gravity * tx + v * v * curvature;
+        }
+
+        function computeTangentialAccel(track, s, v, params) {
+          const sample = sampleTrackAtArcLength(track, s);
+          const normalAccel = computeNormalAccel(sample.tx, sample.curvature, v, params.gravity);
+          const gravityTangential = -params.gravity * sample.ty;
+
+          if (params.friction <= 0) {
+            return { accel: gravityTangential, normalAccel };
+          }
+
+          const frictionMag = params.friction * Math.abs(normalAccel);
+          if (Math.abs(v) < 0.04) {
+            if (Math.abs(gravityTangential) <= frictionMag * 1.05) {
+              return { accel: 0, normalAccel };
+            }
+            const dir = gravityTangential > 0 ? 1 : -1;
+            return { accel: gravityTangential - dir * frictionMag, normalAccel };
+          }
+
+          const sign = v > 0 ? 1 : -1;
+          return { accel: gravityTangential - sign * frictionMag, normalAccel };
+        }
+
+        function clampS(s, maxS) {
+          return Math.max(0, Math.min(maxS, s));
+        }
+
+        function stepSimulation(track, state, params, dt) {
+          if (
+            track.totalLength <= 0 ||
+            state.status === 'finished' ||
+            state.status === 'stopped' ||
+            state.status === 'derailed'
+          ) {
+            return state;
+          }
+
+          const maxSubstep = 1 / 240;
+          const substeps = Math.max(1, Math.ceil(dt / maxSubstep));
+          const h = dt / substeps;
+
+          let { s, v, thermalEnergyPerMass, rollbackDetected, status } = state;
+
+          for (let step = 0; step < substeps; step++) {
+            const d1 = computeTangentialAccel(track, s, v, params);
+            const k1s = v;
+            const k1v = d1.accel;
+
+            const s2 = clampS(s + 0.5 * h * k1s, track.totalLength);
+            const v2 = v + 0.5 * h * k1v;
+            const d2 = computeTangentialAccel(track, s2, v2, params);
+            const k2s = v2;
+            const k2v = d2.accel;
+
+            const s3 = clampS(s + 0.5 * h * k2s, track.totalLength);
+            const v3 = v + 0.5 * h * k2v;
+            const d3 = computeTangentialAccel(track, s3, v3, params);
+            const k3s = v3;
+            const k3v = d3.accel;
+
+            const s4 = clampS(s + h * k3s, track.totalLength);
+            const v4 = v + h * k3v;
+            const d4 = computeTangentialAccel(track, s4, v4, params);
+            const k4s = v4;
+            const k4v = d4.accel;
+
+            const nextS = s + (h / 6) * (k1s + 2 * k2s + 2 * k3s + k4s);
+            const nextV = v + (h / 6) * (k1v + 2 * k2v + 2 * k3v + k4v);
+
+            const avgNormalAccel =
+              (Math.abs(d1.normalAccel) +
+                2 * Math.abs(d2.normalAccel) +
+                2 * Math.abs(d3.normalAccel) +
+                Math.abs(d4.normalAccel)) /
+              6;
+            thermalEnergyPerMass += params.friction * avgNormalAccel * Math.abs(nextS - s);
+
+            s = nextS;
+            v = nextV;
+
+            if (v < -0.25) rollbackDetected = true;
+
+            const sample = sampleTrackAtArcLength(track, clampS(s, track.totalLength));
+            const currentNormal = computeNormalAccel(sample.tx, sample.curvature, v, params.gravity);
+            if (!params.latchedToRail && currentNormal < -0.15) {
+              status = 'derailed';
+              break;
+            }
+
+            if (params.friction > 0 && Math.abs(v) < 0.03) {
+              const check = computeTangentialAccel(track, s, 0, params);
+              if (Math.abs(check.accel) < 0.02) {
+                thermalEnergyPerMass += 0.5 * v * v;
+                v = 0;
+                status = 'stopped';
+                break;
+              }
+            }
+
+            if (s >= track.totalLength) {
+              s = track.totalLength;
+              thermalEnergyPerMass += 0.5 * v * v;
+              v = 0;
+              status = 'finished';
+              break;
+            }
+
+            if (s <= 0 && v < 0) {
+              s = 0;
+              thermalEnergyPerMass += 0.5 * v * v;
+              v = 0;
+              status = 'stopped';
+              break;
+            }
+          }
+
+          return { s, v, thermalEnergyPerMass, status, rollbackDetected };
+        }
+
+        function createInitialCartState(params) {
+          return {
+            s: 0,
+            v: params.initialSpeed,
+            thermalEnergyPerMass: 0,
+            status: 'ready',
+            rollbackDetected: false,
+          };
+        }
+
+        function computeTelemetry(track, state, params) {
+          const sample = sampleTrackAtArcLength(track, state.s);
+          const ep = params.mass * params.gravity * sample.y;
+          const ek = 0.5 * params.mass * state.v * state.v;
+          const ethermal = params.mass * state.thermalEnergyPerMass;
+          const etotal = ep + ek + ethermal;
+          const normalAccel = computeNormalAccel(sample.tx, sample.curvature, state.v, params.gravity);
+          const normalForce = params.mass * normalAccel;
+          const gForce = params.gravity > 0 ? normalAccel / params.gravity : 0;
+
+          return {
+            x: sample.x,
+            y: sample.y,
+            tx: sample.tx,
+            ty: sample.ty,
+            nx: sample.nx,
+            ny: sample.ny,
+            curvature: sample.curvature,
+            speed: Math.abs(state.v),
+            signedVelocity: state.v,
+            height: sample.y,
+            ep,
+            ek,
+            ethermal,
+            etotal,
+            normalForce,
+            gForce,
+            status: state.status,
+            rollbackDetected: state.rollbackDetected,
+          };
+        }
+
+        // ============================================================
+        // 4. Application State
+        // ============================================================
+        const clonePoints = (pts) => pts.map((p) => ({ ...p }));
+        const createInitialMetrics = () => ({
+          maxSpeed: 0,
+          maxGForce: 1,
+          minGForce: 1,
+          completedTrack: false,
+          derailed: false,
+          rollbackCount: 0,
+          passedInvertedLoop: false,
+        });
+
+        let activePreset = 'vertical-loop';
+        let points = clonePoints(TRACK_PRESETS['vertical-loop'].points);
+        let params = {
+          mass: 500,
+          gravity: 9.81,
+          friction: 0.015,
+          initialSpeed: 0,
+          latchedToRail: true,
+          ...TRACK_PRESETS['vertical-loop'].recommendedParams,
+        };
+        let track = buildTrackGeometry(points);
+        let simState = createInitialCartState(params);
+        let ghostState = createInitialCartState({ ...params, friction: 0 });
+        let metrics = createInitialMetrics();
+        let history = [];
+        let simTime = 0;
+        let lastHistoryRecord = -1;
+
+        let playbackSpeed = 1;
+        let editMode = false;
+        let selectedPointId = null;
+        let hoveredPointId = null;
+        let draggingPointId = null;
+        let scrubbingCart = false;
+        let hoverWorld = null;
+        let showVectors = true;
+        let showHeatmap = false;
+        let showGhost = false;
+        let challengeOpen = false;
+        let chartHoverIdx = null;
+        let sparks = [];
+        let rafId = 0;
+        let lastFrameTs = 0;
+        let toastTimer = 0;
+
+        // ============================================================
+        // 5. DOM References
+        // ============================================================
+        const elDesktopPresets = document.getElementById('desktop-preset-nav');
+        const elMobilePresets = document.getElementById('mobile-preset-nav');
+        const elPlayPauseBtn = document.getElementById('play-pause-btn');
+        const elStepBtn = document.getElementById('step-btn');
+        const elResetBtn = document.getElementById('reset-btn');
+        const elSpeedSelector = document.getElementById('speed-selector');
+        const elModeObserveBtn = document.getElementById('mode-observe-btn');
+        const elModeEditBtn = document.getElementById('mode-edit-btn');
+        const elDeletePointBtn = document.getElementById('delete-point-btn');
+        const elToggleVectorsBtn = document.getElementById('toggle-vectors-btn');
+        const elToggleHeatmapBtn = document.getElementById('toggle-heatmap-btn');
+        const elToggleGhostBtn = document.getElementById('toggle-ghost-btn');
+        const elExportBtn = document.getElementById('export-json-btn');
+        const elImportBtn = document.getElementById('import-json-btn');
+        const elImportInput = document.getElementById('import-file-input');
+
+        const elCanvasWrap = document.getElementById('canvas-wrap');
+        const elCanvas = document.getElementById('track-canvas');
+        const ctx = elCanvas.getContext('2d');
+        const elStatusBadge = document.getElementById('status-badge');
+        const elHeatmapLegend = document.getElementById('heatmap-legend');
+        const elHeatmapMaxLabel = document.getElementById('heatmap-max-label');
+        const elCoordProbe = document.getElementById('coord-probe');
+        const elPresetTitle = document.getElementById('preset-title');
+        const elPresetDesc = document.getElementById('preset-desc');
+        const elFooterMetrics = document.getElementById('footer-metrics');
+
+        const elTotalEnergy = document.getElementById('total-energy-label');
+        const elBarEp = document.getElementById('bar-ep');
+        const elBarEk = document.getElementById('bar-ek');
+        const elBarTh = document.getElementById('bar-th');
+        const elValEp = document.getElementById('val-ep');
+        const elValEk = document.getElementById('val-ek');
+        const elValTh = document.getElementById('val-th');
+
+        const elTeleSpeed = document.getElementById('tele-speed');
+        const elTeleKmh = document.getElementById('tele-kmh');
+        const elTeleG = document.getElementById('tele-g');
+        const elTeleGState = document.getElementById('tele-g-state');
+        const elTeleHeight = document.getElementById('tele-height');
+        const elTeleNormal = document.getElementById('tele-normal');
+        const elTeleDist = document.getElementById('tele-dist');
+        const elTeleDistTotal = document.getElementById('tele-dist-total');
+
+        const elChartEmpty = document.getElementById('chart-empty');
+        const elChartSvg = document.getElementById('energy-chart-svg');
+        const elChartHoverLabel = document.getElementById('chart-hover-label');
+
+        const elMassSlider = document.getElementById('param-mass');
+        const elGravitySlider = document.getElementById('param-gravity');
+        const elFrictionSlider = document.getElementById('param-friction');
+        const elV0Slider = document.getElementById('param-v0');
+        const elReadoutMass = document.getElementById('readout-mass');
+        const elReadoutGravity = document.getElementById('readout-gravity');
+        const elReadoutFriction = document.getElementById('readout-friction');
+        const elReadoutV0 = document.getElementById('readout-v0');
+        const elGravityPresets = document.getElementById('gravity-presets');
+        const elLatchBtn = document.getElementById('latch-btn');
+
+        const elToggleChallengeBtn = document.getElementById('toggle-challenge-btn');
+        const elCloseChallengeBtn = document.getElementById('close-challenge-btn');
+        const elChallengeDrawer = document.getElementById('challenge-drawer');
+        const elMissionListContainer = document.getElementById('mission-list-container');
+        const elToast = document.getElementById('toast');
+
+        // ============================================================
+        // 6. Canvas Viewport & Drawing
+        // ============================================================
+        let canvasSize = { width: 920, height: 540 };
+
+        function getTransform() {
+          const padLeft = 48;
+          const padRight = 24;
+          const padTop = 36;
+          const padBottom = 38;
+          const availW = Math.max(100, canvasSize.width - padLeft - padRight);
+          const availH = Math.max(100, canvasSize.height - padTop - padBottom);
+          const scale = Math.min(availW / WORLD_WIDTH, availH / WORLD_HEIGHT);
+          const usedW = WORLD_WIDTH * scale;
+          const usedH = WORLD_HEIGHT * scale;
+          const offsetX = padLeft + (availW - usedW) * 0.5;
+          const offsetY = padTop + (availH - usedH) * 0.5 + usedH;
+          return { scale, offsetX, offsetY };
+        }
+
+        function worldToScreen(wx, wy, tr) {
+          return { sx: tr.offsetX + wx * tr.scale, sy: tr.offsetY - wy * tr.scale };
+        }
+
+        function screenToWorld(sx, sy, tr) {
+          return { wx: (sx - tr.offsetX) / tr.scale, wy: (tr.offsetY - sy) / tr.scale };
+        }
+
+        function lerpColor(a, b, t) {
+          const r = Math.round(a[0] + (b[0] - a[0]) * t);
+          const g = Math.round(a[1] + (b[1] - a[1]) * t);
+          const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+          return `rgb(${r}, ${g}, ${bl})`;
+        }
+
+        function speedToColor(speed, maxRefSpeed) {
+          const t = Math.max(0, Math.min(1, speed / Math.max(1, maxRefSpeed)));
+          if (t < 0.35) return lerpColor([37, 99, 235], [8, 145, 178], t / 0.35);
+          if (t < 0.7) return lerpColor([8, 145, 178], [217, 119, 6], (t - 0.35) / 0.35);
+          return lerpColor([217, 119, 6], [220, 38, 38], (t - 0.7) / 0.3);
+        }
+
+        function drawCart(tr, t, isGhost) {
+          const pos = worldToScreen(t.x, t.y, tr);
+          const angle = Math.atan2(-t.ty, t.tx);
+          ctx.save();
+          ctx.translate(pos.sx, pos.sy);
+          ctx.rotate(angle);
+
+          const w = Math.max(22, tr.scale * 3.1);
+          const h = Math.max(10, tr.scale * 1.4);
+          const wheelR = Math.max(3, tr.scale * 0.42);
+
+          if (isGhost) {
+            ctx.globalAlpha = 0.45;
+            ctx.setLineDash([3, 2]);
+            ctx.strokeStyle = '#0891B2';
+            ctx.fillStyle = 'rgba(8, 145, 178, 0.12)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(-w / 2, -h - wheelR * 1.4, w, h, 3);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#0E7490';
+            ctx.font = '600 9px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('μ=0', 0, -h - wheelR * 1.4 - 4);
+            ctx.restore();
+            return;
+          }
+
+          for (const wx of [-w * 0.32, w * 0.32]) {
+            ctx.beginPath();
+            ctx.arc(wx, -wheelR, wheelR, 0, Math.PI * 2);
+            ctx.fillStyle = '#334155';
+            ctx.fill();
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.stroke();
+          }
+
+          ctx.fillStyle = t.status === 'derailed' ? '#DC2626' : '#0F172A';
+          ctx.beginPath();
+          ctx.roundRect(-w / 2, -h - wheelR * 1.3, w, h, [4, 4, 2, 2]);
+          ctx.fill();
+
+          ctx.fillStyle = t.status === 'derailed' ? '#FCA5A5' : '#F59E0B';
+          ctx.fillRect(w / 2 - 4, -h - wheelR * 1.3 + 2, 2.5, h - 4);
+
+          ctx.fillStyle = '#E2E8F0';
+          ctx.beginPath();
+          ctx.arc(-w * 0.16, -h - wheelR * 1.3 - 2.5, 3, 0, Math.PI * 2);
+          ctx.arc(w * 0.14, -h - wheelR * 1.3 - 2.5, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function drawArrow(x1, y1, x2, y2, color, label) {
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          if (Math.hypot(dx, dy) < 6) return;
+          const angle = Math.atan2(dy, dx);
+          const headLen = 7;
+
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(
+            x2 - headLen * Math.cos(angle - Math.PI / 6),
+            y2 - headLen * Math.sin(angle - Math.PI / 6)
+          );
+          ctx.lineTo(
+            x2 - headLen * Math.cos(angle + Math.PI / 6),
+            y2 - headLen * Math.sin(angle + Math.PI / 6)
+          );
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.font = '600 11px "IBM Plex Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x2 + Math.cos(angle) * 10, y2 + Math.sin(angle) * 10 + 3);
+          ctx.restore();
+        }
+
+        function getHeatmapMeta() {
+          const startY = track.samples[0] ? track.samples[0].y : 0;
+          const startTotalSpecificEnergy =
+            params.gravity * startY + 0.5 * params.initialSpeed * params.initialSpeed;
+          const minY = track.samples.length > 0 ? track.bounds.minY : 0;
+          const maxSpecificEk = Math.max(0, startTotalSpecificEnergy - params.gravity * minY);
+          const maxRefSpeed = Math.max(12, Math.ceil(Math.sqrt(2 * maxSpecificEk)));
+          return { startTotalSpecificEnergy, maxRefSpeed };
+        }
+
+        function renderCanvas(telemetry, ghostTelemetry) {
+          const dpr = window.devicePixelRatio || 1;
+          const targetW = Math.floor(canvasSize.width * dpr);
+          const targetH = Math.floor(canvasSize.height * dpr);
+          if (elCanvas.width !== targetW || elCanvas.height !== targetH) {
+            elCanvas.width = targetW;
+            elCanvas.height = targetH;
+          }
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          const tr = getTransform();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+
+          // Grid lines
+          ctx.lineWidth = 1;
+          for (let x = 0; x <= WORLD_WIDTH; x += 5) {
+            const { sx } = worldToScreen(x, 0, tr);
+            const isMajor = x % 10 === 0;
+            ctx.strokeStyle = isMajor ? '#E2E8F0' : '#F1F5F9';
+            ctx.beginPath();
+            ctx.moveTo(sx, worldToScreen(0, WORLD_HEIGHT, tr).sy);
+            ctx.lineTo(sx, worldToScreen(0, 0, tr).sy);
+            ctx.stroke();
+
+            if (isMajor && x % 20 === 0) {
+              ctx.fillStyle = '#64748B';
+              ctx.font = '500 10px "IBM Plex Mono", monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText(`${x}m`, sx, worldToScreen(0, 0, tr).sy + 16);
+            }
+          }
+
+          for (let y = 0; y <= WORLD_HEIGHT; y += 5) {
+            const { sy } = worldToScreen(0, y, tr);
+            const isMajor = y % 10 === 0;
+            ctx.strokeStyle = isMajor ? '#E2E8F0' : '#F1F5F9';
+            ctx.beginPath();
+            ctx.moveTo(worldToScreen(0, 0, tr).sx, sy);
+            ctx.lineTo(worldToScreen(WORLD_WIDTH, 0, tr).sx, sy);
+            ctx.stroke();
+
+            if (isMajor) {
+              ctx.fillStyle = '#64748B';
+              ctx.font = '500 10px "IBM Plex Mono", monospace';
+              ctx.textAlign = 'right';
+              ctx.fillText(`${y}m`, worldToScreen(0, 0, tr).sx - 8, sy + 3);
+            }
+          }
+
+          // Ground datum
+          const groundLeft = worldToScreen(0, 0, tr);
+          const groundRight = worldToScreen(WORLD_WIDTH, 0, tr);
+          ctx.strokeStyle = '#94A3B8';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(groundLeft.sx, groundLeft.sy);
+          ctx.lineTo(groundRight.sx, groundRight.sy);
+          ctx.stroke();
+
+          ctx.fillStyle = '#F8FAFC';
+          ctx.fillRect(
+            groundLeft.sx,
+            groundLeft.sy + 1,
+            groundRight.sx - groundLeft.sx,
+            canvasSize.height - groundLeft.sy
+          );
+
+          const samples = track.samples;
+          const { startTotalSpecificEnergy, maxRefSpeed } = getHeatmapMeta();
+
+          if (samples.length >= 2) {
+            // Support pillars
+            ctx.strokeStyle = '#CBD5E1';
+            ctx.lineWidth = 1.25;
+            let nextSupportS = 4;
+            for (let i = 0; i < samples.length; i++) {
+              const samp = samples[i];
+              if (samp.s >= nextSupportS) {
+                const top = worldToScreen(samp.x, samp.y, tr);
+                const bottom = worldToScreen(samp.x, 0, tr);
+                ctx.beginPath();
+                ctx.moveTo(top.sx, top.sy);
+                ctx.lineTo(bottom.sx, bottom.sy);
+                ctx.stroke();
+                ctx.fillStyle = '#94A3B8';
+                ctx.fillRect(bottom.sx - 3, bottom.sy - 2, 6, 2);
+                nextSupportS += 9;
+              }
+            }
+
+            // Track Rail
+            if (showHeatmap) {
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.lineWidth = 5;
+              for (let i = 0; i < samples.length - 1; i++) {
+                const a = samples[i];
+                const b = samples[i + 1];
+                const midY = 0.5 * (a.y + b.y);
+                const estEkSpec = Math.max(0, startTotalSpecificEnergy - params.gravity * midY);
+                const estSpeed = Math.sqrt(2 * estEkSpec);
+                const pA = worldToScreen(a.x, a.y, tr);
+                const pB = worldToScreen(b.x, b.y, tr);
+                ctx.strokeStyle = speedToColor(estSpeed, maxRefSpeed);
+                ctx.beginPath();
+                ctx.moveTo(pA.sx, pA.sy);
+                ctx.lineTo(pB.sx, pB.sy);
+                ctx.stroke();
+              }
+            } else {
+              ctx.strokeStyle = '#94A3B8';
+              ctx.lineWidth = 5.5;
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.beginPath();
+              samples.forEach((samp, idx) => {
+                const pt = worldToScreen(samp.x - samp.nx * 0.35, samp.y - samp.ny * 0.35, tr);
+                if (idx === 0) ctx.moveTo(pt.sx, pt.sy);
+                else ctx.lineTo(pt.sx, pt.sy);
+              });
+              ctx.stroke();
+
+              ctx.strokeStyle = '#0F172A';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              samples.forEach((samp, idx) => {
+                const pt = worldToScreen(samp.x, samp.y, tr);
+                if (idx === 0) ctx.moveTo(pt.sx, pt.sy);
+                else ctx.lineTo(pt.sx, pt.sy);
+              });
+              ctx.stroke();
+            }
+
+            const startPt = worldToScreen(samples[0].x, samples[0].y, tr);
+            const endPt = worldToScreen(samples[samples.length - 1].x, samples[samples.length - 1].y, tr);
+            ctx.fillStyle = '#0284C7';
+            ctx.font = '600 10px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('출발', startPt.sx, startPt.sy - 18);
+            ctx.fillStyle = '#475569';
+            ctx.fillText('도착', endPt.sx, endPt.sy - 18);
+          }
+
+          // Sparks
+          for (const sp of sparks) {
+            const p = worldToScreen(sp.x, sp.y, tr);
+            ctx.fillStyle = `rgba(239, 68, 68, ${sp.life.toFixed(2)})`;
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Control point handles
+          const showHandles = editMode || telemetry.status === 'ready' || telemetry.status === 'paused';
+          if (showHandles) {
+            points.forEach((pt, idx) => {
+              const s = worldToScreen(pt.x, pt.y, tr);
+              const isSelected = pt.id === selectedPointId;
+              const isHovered = pt.id === hoveredPointId;
+              const radius = editMode ? (isSelected || isHovered ? 8 : 6.5) : 4.5;
+
+              ctx.beginPath();
+              ctx.arc(s.sx, s.sy, radius, 0, Math.PI * 2);
+              ctx.fillStyle = isSelected
+                ? '#2563EB'
+                : editMode
+                ? '#FFFFFF'
+                : 'rgba(255,255,255,0.85)';
+              ctx.fill();
+              ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.75;
+              ctx.strokeStyle = isSelected ? '#1D4ED8' : editMode ? '#0F172A' : '#64748B';
+              ctx.stroke();
+
+              if (editMode) {
+                ctx.fillStyle = isSelected ? '#FFFFFF' : '#0F172A';
+                ctx.font = '600 9px "IBM Plex Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${idx + 1}`, s.sx, s.sy + 3);
+              }
+            });
+          }
+
+          // Ghost & Main Cart
+          if (showGhost && ghostTelemetry) drawCart(tr, ghostTelemetry, true);
+          drawCart(tr, telemetry, false);
+
+          // Vectors
+          if (showVectors) {
+            const cartCenter = worldToScreen(
+              telemetry.x + telemetry.nx * 1.1,
+              telemetry.y + telemetry.ny * 1.1,
+              tr
+            );
+            if (telemetry.speed > 0.2) {
+              const vScale = Math.min(68, telemetry.speed * 2.1);
+              const dir = telemetry.signedVelocity >= 0 ? 1 : -1;
+              drawArrow(
+                cartCenter.sx,
+                cartCenter.sy,
+                cartCenter.sx + telemetry.tx * dir * vScale,
+                cartCenter.sy - telemetry.ty * dir * vScale,
+                '#D97706',
+                'v'
+              );
+            }
+            const gWeight = params.mass * params.gravity;
+            if (gWeight > 0) {
+              const nRatio = telemetry.normalForce / gWeight;
+              const nLen = Math.max(-56, Math.min(72, nRatio * 24));
+              if (Math.abs(nLen) > 4) {
+                drawArrow(
+                  cartCenter.sx,
+                  cartCenter.sy,
+                  cartCenter.sx + telemetry.nx * nLen,
+                  cartCenter.sy - telemetry.ny * nLen,
+                  '#0284C7',
+                  'N'
+                );
+              }
+              drawArrow(cartCenter.sx, cartCenter.sy, cartCenter.sx, cartCenter.sy + 24, '#475569', 'mg');
+            }
+          }
+
+          // Hover Crosshair
+          if (hoverWorld) {
+            const hs = worldToScreen(hoverWorld.x, hoverWorld.y, tr);
+            ctx.save();
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(hs.sx, worldToScreen(0, WORLD_HEIGHT, tr).sy);
+            ctx.lineTo(hs.sx, groundLeft.sy);
+            ctx.moveTo(groundLeft.sx, hs.sy);
+            ctx.lineTo(groundRight.sx, hs.sy);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // ============================================================
+        // 7. UI Renderers
+        // ============================================================
+        function renderPresetTabs() {
+          elDesktopPresets.innerHTML = '';
+          elMobilePresets.innerHTML = '';
+          Object.values(TRACK_PRESETS).forEach((preset) => {
+            const btnD = document.createElement('button');
+            btnD.type = 'button';
+            btnD.className = `preset-tab ${activePreset === preset.key ? 'active' : ''}`;
+            btnD.textContent = preset.label;
+            btnD.addEventListener('click', () => selectPreset(preset.key));
+            elDesktopPresets.appendChild(btnD);
+
+            const btnM = document.createElement('button');
+            btnM.type = 'button';
+            btnM.className = `mobile-preset-btn ${activePreset === preset.key ? 'active' : ''}`;
+            btnM.textContent = preset.label;
+            btnM.addEventListener('click', () => selectPreset(preset.key));
+            elMobilePresets.appendChild(btnM);
+          });
+
+          elPresetTitle.textContent = TRACK_PRESETS[activePreset].label;
+          elPresetDesc.textContent = TRACK_PRESETS[activePreset].description;
+        }
+
+        function renderToolbarState() {
+          if (simState.status === 'running') {
+            elPlayPauseBtn.innerHTML =
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg><span>일시정지</span>';
+          } else {
+            elPlayPauseBtn.innerHTML =
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>재생</span>';
+          }
+          elStepBtn.disabled = simState.status === 'running';
+
+          elSpeedSelector.innerHTML = '';
+          SPEED_OPTIONS.forEach((spd) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `seg-btn mono ${playbackSpeed === spd ? 'active' : ''}`;
+            btn.textContent = `${spd}×`;
+            btn.addEventListener('click', () => {
+              playbackSpeed = spd;
+              renderToolbarState();
+            });
+            elSpeedSelector.appendChild(btn);
+          });
+
+          elModeObserveBtn.className = `seg-btn ${!editMode ? 'active' : ''}`;
+          elModeEditBtn.className = `seg-btn ${editMode ? 'active-blue' : ''}`;
+
+          const showDelete = editMode && selectedPointId && points.length > 3;
+          elDeletePointBtn.style.display = showDelete ? 'inline-flex' : 'none';
+
+          elToggleVectorsBtn.className = `toggle-btn ${showVectors ? 'active' : ''}`;
+          elToggleHeatmapBtn.className = `toggle-btn ${showHeatmap ? 'active' : ''}`;
+          elToggleGhostBtn.className = `toggle-btn ${showGhost ? 'active-cyan' : ''}`;
+
+          elToggleChallengeBtn.textContent = challengeOpen ? '미션 닫기' : '도전 미션';
+          elChallengeDrawer.classList.toggle('open', challengeOpen);
+
+          const { maxRefSpeed } = getHeatmapMeta();
+          elHeatmapLegend.style.display = showHeatmap ? 'flex' : 'none';
+          elHeatmapMaxLabel.textContent = `${maxRefSpeed} m/s`;
+        }
+
+        function renderParameterControls() {
+          elMassSlider.value = String(params.mass);
+          elReadoutMass.textContent = `${params.mass} kg`;
+
+          elGravitySlider.value = String(params.gravity);
+          elReadoutGravity.textContent = `${params.gravity.toFixed(2)} m/s²`;
+
+          elFrictionSlider.value = String(params.friction);
+          elReadoutFriction.textContent =
+            params.friction === 0 ? '0.000 (무마찰)' : params.friction.toFixed(3);
+
+          elV0Slider.value = String(params.initialSpeed);
+          elReadoutV0.textContent = `${params.initialSpeed.toFixed(1)} m/s`;
+
+          elGravityPresets.innerHTML = '';
+          GRAVITY_PRESETS.forEach((gp) => {
+            const active = Math.abs(params.gravity - gp.value) < 0.05;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `gravity-btn ${active ? 'active' : ''}`;
+            btn.textContent = gp.label;
+            btn.addEventListener('click', () => updateParams({ gravity: gp.value }));
+            elGravityPresets.appendChild(btn);
+          });
+
+          elLatchBtn.textContent = params.latchedToRail ? '구속 활성' : '이탈 허용';
+          elLatchBtn.className = `latch-btn ${params.latchedToRail ? '' : 'unlatched'}`;
+        }
+
+        function renderEnergyChart() {
+          if (history.length < 2) {
+            elChartEmpty.style.display = 'flex';
+            elChartSvg.style.display = 'none';
+            elChartHoverLabel.textContent = 'Eₚ / Eₖ / Eₜₕ (kJ)';
+            return;
+          }
+
+          elChartEmpty.style.display = 'none';
+          elChartSvg.style.display = 'block';
+
+          const chartW = 340;
+          const chartH = 128;
+          const padL = 34;
+          const padR = 10;
+          const padT = 10;
+          const padB = 20;
+          const innerW = chartW - padL - padR;
+          const innerH = chartH - padT - padB;
+
+          const maxT = Math.max(2, history[history.length - 1].t);
+          let maxE = 1000;
+          for (const p of history) {
+            const sum = Math.max(p.etotal, p.ep + p.ek + p.ethermal);
+            if (sum > maxE) maxE = sum;
+          }
+          maxE *= 1.08;
+
+          const toX = (t) => padL + (t / maxT) * innerW;
+          const toY = (e) => padT + innerH - (e / maxE) * innerH;
+          const buildPath = (getter) =>
+            history
+              .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.t).toFixed(1)},${toY(getter(p)).toFixed(1)}`)
+              .join(' ');
+
+          let gridSvg = '';
+          [0, 0.5, 1].forEach((frac) => {
+            const y = padT + innerH * (1 - frac);
+            const valKj = ((maxE * frac) / 1000).toFixed(0);
+            gridSvg += `<line x1="${padL}" y1="${y}" x2="${chartW - padR}" y2="${y}" stroke="#E2E8F0" stroke-width="1" />`;
+            gridSvg += `<text x="${padL - 4}" y="${y + 3}" text-anchor="end" font-size="9" fill="#64748B" font-family="IBM Plex Mono, monospace">${valKj}</text>`;
+          });
+
+          const activePt = chartHoverIdx !== null && history[chartHoverIdx] ? history[chartHoverIdx] : null;
+          const crosshairSvg = activePt
+            ? `<line x1="${toX(activePt.t)}" y1="${padT}" x2="${toX(activePt.t)}" y2="${padT + innerH}" stroke="#0F172A" stroke-width="1" stroke-dasharray="2 2" />`
+            : '';
+
+          elChartHoverLabel.textContent = activePt
+            ? `t=${activePt.t.toFixed(1)}s · Eₚ ${(activePt.ep / 1000).toFixed(1)} · Eₖ ${(activePt.ek / 1000).toFixed(1)}`
+            : 'Eₚ / Eₖ / Eₜₕ (kJ)';
+
+          elChartSvg.innerHTML = `
+            ${gridSvg}
+            <text x="${padL}" y="${chartH - 4}" font-size="9" fill="#64748B" font-family="IBM Plex Mono, monospace">0s</text>
+            <text x="${chartW - padR}" y="${chartH - 4}" text-anchor="end" font-size="9" fill="#64748B" font-family="IBM Plex Mono, monospace">${maxT.toFixed(1)}s</text>
+            <path d="${buildPath((p) => p.etotal)}" fill="none" stroke="#64748B" stroke-width="1.25" stroke-dasharray="4 3" />
+            <path d="${buildPath((p) => p.ep)}" fill="none" stroke="#2563EB" stroke-width="1.75" />
+            <path d="${buildPath((p) => p.ek)}" fill="none" stroke="#D97706" stroke-width="1.75" />
+            <path d="${buildPath((p) => p.ethermal)}" fill="none" stroke="#DC2626" stroke-width="1.5" />
+            ${crosshairSvg}
+          `;
+        }
+
+        function renderMissions() {
+          if (!challengeOpen) return;
+          elMissionListContainer.innerHTML = '';
+          CHALLENGE_MISSIONS.forEach((m) => {
+            const res = m.evaluate(metrics, params, points, track);
+            const card = document.createElement('div');
+            card.className = 'mission-card';
+
+            const checksHtml = res.details
+              .map((c) => {
+                const icon = c.ok
+                  ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+                  : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>';
+                return `<li class="mission-check ${c.ok ? 'ok' : ''}">${icon}<span>${c.label}</span></li>`;
+              })
+              .join('');
+
+            card.innerHTML = `
+              <div class="mission-head">
+                <h3 class="mission-name">${m.title}</h3>
+                <span class="mission-status ${res.passed ? 'passed' : ''}">${
+                  res.passed ? '✓ 달성 완료' : '진행 중'
+                }</span>
+              </div>
+              <p class="mission-desc">${m.summary}</p>
+              <ul class="mission-list">${checksHtml}</ul>
+              <div>
+                <button type="button" class="btn-subtle" data-mission-preset="${m.recommendedPreset}" data-mission-id="${m.id}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  <span>추천 트랙 불러오기</span>
+                </button>
+              </div>
+            `;
+            elMissionListContainer.appendChild(card);
+          });
+
+          elMissionListContainer.querySelectorAll('[data-mission-preset]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const presetKey = btn.getAttribute('data-mission-preset');
+              const missionId = btn.getAttribute('data-mission-id');
+              selectPreset(presetKey);
+              if (missionId === 'mission-loop') {
+                updateParams({ friction: 0.02, initialSpeed: 0, latchedToRail: false });
+              } else if (missionId === 'mission-lunar') {
+                updateParams({ gravity: 1.62, initialSpeed: 0 });
+              }
+              challengeOpen = false;
+              renderToolbarState();
+              showToast('미션 추천 트랙과 기본 조건이 적용되었습니다.');
+            });
+          });
+        }
+
+        function renderAll() {
+          const telemetry = computeTelemetry(track, simState, params);
+          const ghostTelemetry = showGhost
+            ? computeTelemetry(track, ghostState, { ...params, friction: 0 })
+            : null;
+
+          // Update status badge
+          let badgeText = '';
+          let badgeClass = 'status-badge';
+          if (telemetry.status === 'derailed') {
+            badgeText = '✖ 루프 이탈 (수직항력 N < 0)';
+            badgeClass += ' danger';
+          } else if (telemetry.rollbackDetected && telemetry.status === 'running') {
+            badgeText = '▲ 역주행 진행 중 (에너지 부족)';
+            badgeClass += ' warning';
+          } else if (telemetry.status === 'running') {
+            badgeText = '● 시뮬레이션 주행 중';
+            badgeClass += ' running';
+          } else if (telemetry.status === 'paused') {
+            badgeText = '❚❚ 일시정지 (트랙 클릭으로 카트 위치 이동)';
+          } else if (telemetry.status === 'finished') {
+            badgeText = '✓ 트랙 완주 완료';
+            badgeClass += ' finished';
+          } else if (telemetry.status === 'stopped') {
+            badgeText = '▲ 마찰 정지 (에너지 소진)';
+            badgeClass += ' warning';
+          } else {
+            badgeText = editMode
+              ? '편집 모드 · 포인트 드래그 또는 트랙 클릭으로 추가'
+              : '● 준비 완료 · 재생을 누르거나 포인트를 드래그하세요';
+          }
+          elStatusBadge.textContent = badgeText;
+          elStatusBadge.className = badgeClass;
+
+          elCoordProbe.textContent = hoverWorld
+            ? `x: ${hoverWorld.x.toFixed(1)} m · h: ${hoverWorld.y.toFixed(1)} m`
+            : `카트 위치 x: ${telemetry.x.toFixed(1)} m · h: ${telemetry.y.toFixed(1)} m`;
+
+          // Footer metrics
+          const minY = track.samples.length > 0 ? track.bounds.minY : 0;
+          const maxY = track.samples.length > 0 ? track.bounds.maxY : 0;
+          elFooterMetrics.innerHTML = `
+            <span>길이 ${track.totalLength.toFixed(1)} m</span>
+            <span aria-hidden="true">·</span>
+            <span>최고 ${maxY.toFixed(1)} m</span>
+            <span aria-hidden="true">·</span>
+            <span>최저 ${minY.toFixed(1)} m</span>
+            <span aria-hidden="true">·</span>
+            <span>최대기록 ${(metrics.maxSpeed * 3.6).toFixed(1)} km/h / ${metrics.maxGForce.toFixed(2)} G</span>
+          `;
+
+          // Energy Bars
+          const eTotal = Math.max(1, telemetry.etotal);
+          const epPct = Math.max(0, Math.min(100, (telemetry.ep / eTotal) * 100));
+          const ekPct = Math.max(0, Math.min(100, (telemetry.ek / eTotal) * 100));
+          const thPct = Math.max(0, Math.min(100, (telemetry.ethermal / eTotal) * 100));
+
+          elTotalEnergy.textContent = `총 ${(telemetry.etotal / 1000).toFixed(1)} kJ`;
+          elBarEp.style.width = `${epPct}%`;
+          elBarEk.style.width = `${ekPct}%`;
+          elBarTh.style.width = `${thPct}%`;
+          elValEp.innerHTML = `${(telemetry.ep / 1000).toFixed(2)} kJ<span class="energy-pct">${epPct.toFixed(0)}%</span>`;
+          elValEk.innerHTML = `${(telemetry.ek / 1000).toFixed(2)} kJ<span class="energy-pct">${ekPct.toFixed(0)}%</span>`;
+          elValTh.innerHTML = `${(telemetry.ethermal / 1000).toFixed(2)} kJ<span class="energy-pct">${thPct.toFixed(0)}%</span>`;
+
+          // 2x2 Telemetry
+          elTeleSpeed.textContent = telemetry.speed.toFixed(1);
+          elTeleKmh.textContent = `${(telemetry.speed * 3.6).toFixed(1)} km/h`;
+          elTeleG.textContent = telemetry.gForce.toFixed(2);
+          if (telemetry.gForce < 0) {
+            elTeleGState.textContent = '▲ 음의 G (부상)';
+            elTeleGState.className = 'tele-sub state-danger';
+          } else if (telemetry.gForce < 0.3) {
+            elTeleGState.textContent = '▲ 무중력 구간';
+            elTeleGState.className = 'tele-sub state-warn';
+          } else if (telemetry.gForce > 5.0) {
+            elTeleGState.textContent = '✖ 고하중 위험';
+            elTeleGState.className = 'tele-sub state-danger';
+          } else if (telemetry.gForce > 3.8) {
+            elTeleGState.textContent = '▲ 고하중 주의';
+            elTeleGState.className = 'tele-sub state-warn';
+          } else {
+            elTeleGState.textContent = '● 안전 범위';
+            elTeleGState.className = 'tele-sub state-safe';
+          }
+
+          elTeleHeight.textContent = telemetry.height.toFixed(1);
+          elTeleNormal.textContent = `수직항력 ${(telemetry.normalForce / 1000).toFixed(2)} kN`;
+          elTeleDist.textContent = simState.s.toFixed(1);
+          const pctDist = track.totalLength > 0 ? ((simState.s / track.totalLength) * 100).toFixed(0) : 0;
+          elTeleDistTotal.textContent = `전체 ${track.totalLength.toFixed(1)} m (${pctDist}%)`;
+
+          renderEnergyChart();
+          renderMissions();
+          renderCanvas(telemetry, ghostTelemetry);
+        }
+
+        // ============================================================
+        // 8. Simulation Control & Loop
+        // ============================================================
+        function showToast(msg) {
+          elToast.textContent = msg;
+          elToast.classList.add('visible');
+          window.clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(() => elToast.classList.remove('visible'), 3000);
+        }
+
+        function stopLoop() {
+          if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = 0;
+          }
+        }
+
+        function resetSimulation(nextParams = params) {
+          stopLoop();
+          simState = createInitialCartState(nextParams);
+          ghostState = createInitialCartState({ ...nextParams, friction: 0 });
+          metrics = createInitialMetrics();
+          history = [];
+          simTime = 0;
+          lastHistoryRecord = -1;
+          sparks = [];
+          renderToolbarState();
+          renderAll();
+        }
+
+        function selectPreset(key) {
+          const preset = TRACK_PRESETS[key];
+          if (!preset) return;
+          activePreset = key;
+          points = clonePoints(preset.points);
+          selectedPointId = null;
+          track = buildTrackGeometry(points);
+          params = { ...params, ...preset.recommendedParams };
+          renderPresetTabs();
+          renderParameterControls();
+          resetSimulation(params);
+        }
+
+        function updateParams(patch) {
+          params = { ...params, ...patch };
+          renderParameterControls();
+          if (
+            simState.status === 'ready' ||
+            (patch.initialSpeed !== undefined && simState.status !== 'running')
+          ) {
+            resetSimulation(params);
+          } else {
+            renderToolbarState();
+            renderAll();
+          }
+        }
+
+        function advanceOneFrame(dtSeconds) {
+          if (simState.status !== 'running') return false;
+
+          const prevRollback = simState.rollbackDetected;
+          simState = stepSimulation(track, simState, params, dtSeconds);
+          ghostState = stepSimulation(track, ghostState, { ...params, friction: 0 }, dtSeconds);
+          simTime += dtSeconds;
+
+          const snap = computeTelemetry(track, simState, params);
+
+          metrics = {
+            maxSpeed: Math.max(metrics.maxSpeed, snap.speed),
+            maxGForce: Math.max(metrics.maxGForce, snap.gForce),
+            minGForce: Math.min(metrics.minGForce, snap.gForce),
+            completedTrack: metrics.completedTrack || simState.status === 'finished',
+            derailed: metrics.derailed || simState.status === 'derailed',
+            rollbackCount: metrics.rollbackCount + (!prevRollback && simState.rollbackDetected ? 1 : 0),
+            passedInvertedLoop: metrics.passedInvertedLoop || (snap.tx < -0.5 && snap.speed > 0.5),
+          };
+
+          // Sparks update
+          if (simState.status !== 'running') {
+            sparks = [];
+          } else {
+            if (params.friction > 0.002 && snap.speed > 4) {
+              const count = Math.min(3, Math.floor(params.friction * 40));
+              for (let i = 0; i < count; i++) {
+                sparks.push({
+                  x: snap.x - snap.tx * 0.8,
+                  y: snap.y - snap.ty * 0.8,
+                  vx: -snap.tx * (2 + Math.random() * 4) + (Math.random() - 0.5) * 2,
+                  vy: -snap.ty * (2 + Math.random() * 4) + Math.random() * 3,
+                  life: 1,
+                });
+              }
+            }
+            sparks = sparks
+              .map((sp) => ({ ...sp, x: sp.x + sp.vx * 0.04, y: sp.y + sp.vy * 0.04, vy: sp.vy - 0.25, life: sp.life - 0.07 }))
+              .filter((sp) => sp.life > 0);
+          }
+
+          if (simTime - lastHistoryRecord >= 0.08 || simState.status !== 'running') {
+            lastHistoryRecord = simTime;
+            history.push({
+              t: simTime,
+              s: simState.s,
+              ep: snap.ep,
+              ek: snap.ek,
+              ethermal: snap.ethermal,
+              etotal: snap.etotal,
+              speed: snap.speed,
+              gForce: snap.gForce,
+            });
+            if (history.length > 450) history.shift();
+          }
+
+          if (simState.status !== 'running') {
+            renderToolbarState();
+          }
+          renderAll();
+          return simState.status === 'running';
+        }
+
+        function startLoop() {
+          stopLoop();
+          lastFrameTs = performance.now();
+          const tick = (now) => {
+            const rawDt = Math.min(0.05, Math.max(0.001, (now - lastFrameTs) / 1000));
+            lastFrameTs = now;
+            if (advanceOneFrame(rawDt * playbackSpeed)) {
+              rafId = requestAnimationFrame(tick);
+            }
+          };
+          rafId = requestAnimationFrame(tick);
+        }
+
+        function togglePlay() {
+          editMode = false;
+          if (simState.status === 'running') {
+            stopLoop();
+            simState = { ...simState, status: 'paused' };
+            sparks = [];
+            renderToolbarState();
+            renderAll();
+            return;
+          }
+
+          if (simState.status === 'finished' || simState.status === 'stopped' || simState.status === 'derailed') {
+            resetSimulation(params);
+          }
+          simState = { ...simState, status: 'running' };
+          ghostState = { ...ghostState, status: 'running' };
+          renderToolbarState();
+          renderAll();
+          startLoop();
+        }
+
+        function stepForward() {
+          editMode = false;
+          if (simState.status === 'finished' || simState.status === 'stopped' || simState.status === 'derailed') {
+            return;
+          }
+          simState = { ...simState, status: 'running' };
+          ghostState = { ...ghostState, status: 'running' };
+          advanceOneFrame(0.04 * playbackSpeed);
+          if (simState.status === 'running') {
+            simState = { ...simState, status: 'paused' };
+            ghostState = { ...ghostState, status: 'paused' };
+          }
+          renderToolbarState();
+          renderAll();
+        }
+
+        function scrubToArcLength(s) {
+          const sample = sampleTrackAtArcLength(track, s);
+          const startY = track.samples[0] ? track.samples[0].y : sample.y;
+          const startTotalSpec = params.gravity * startY + 0.5 * params.initialSpeed * params.initialSpeed;
+          const availEkSpec = Math.max(0, startTotalSpec - params.gravity * sample.y);
+          const idealSpeed = Math.sqrt(2 * availEkSpec);
+          simState = {
+            s,
+            v: idealSpeed,
+            thermalEnergyPerMass: 0,
+            status: 'paused',
+            rollbackDetected: false,
+          };
+          ghostState = { ...simState };
+          renderToolbarState();
+          renderAll();
+        }
+
+        function deleteSelectedPoint() {
+          if (!selectedPointId || points.length <= 3) return;
+          points = points.filter((p) => p.id !== selectedPointId);
+          selectedPointId = null;
+          track = buildTrackGeometry(points);
+          resetSimulation();
+        }
+
+        // ============================================================
+        // 9. Event Listeners
+        // ============================================================
+        document.getElementById('brand-home').addEventListener('click', (e) => {
+          e.preventDefault();
+          selectPreset('vertical-loop');
+        });
+        elPlayPauseBtn.addEventListener('click', togglePlay);
+        elStepBtn.addEventListener('click', stepForward);
+        elResetBtn.addEventListener('click', () => resetSimulation());
+
+        elModeObserveBtn.addEventListener('click', () => {
+          editMode = false;
+          renderToolbarState();
+          renderAll();
+        });
+        elModeEditBtn.addEventListener('click', () => {
+          if (simState.status === 'running') {
+            stopLoop();
+            simState = { ...simState, status: 'paused' };
+            sparks = [];
+          }
+          editMode = true;
+          renderToolbarState();
+          renderAll();
+        });
+        elDeletePointBtn.addEventListener('click', deleteSelectedPoint);
+
+        elToggleVectorsBtn.addEventListener('click', () => {
+          showVectors = !showVectors;
+          renderToolbarState();
+          renderAll();
+        });
+        elToggleHeatmapBtn.addEventListener('click', () => {
+          showHeatmap = !showHeatmap;
+          renderToolbarState();
+          renderAll();
+        });
+        elToggleGhostBtn.addEventListener('click', () => {
+          showGhost = !showGhost;
+          renderToolbarState();
+          renderAll();
+        });
+
+        elToggleChallengeBtn.addEventListener('click', () => {
+          challengeOpen = !challengeOpen;
+          renderToolbarState();
+          renderMissions();
+        });
+        elCloseChallengeBtn.addEventListener('click', () => {
+          challengeOpen = false;
+          renderToolbarState();
+        });
+
+        elMassSlider.addEventListener('input', (e) => updateParams({ mass: Number(e.target.value) }));
+        elGravitySlider.addEventListener('input', (e) => updateParams({ gravity: Number(e.target.value) }));
+        elFrictionSlider.addEventListener('input', (e) => updateParams({ friction: Number(e.target.value) }));
+        elV0Slider.addEventListener('input', (e) => updateParams({ initialSpeed: Number(e.target.value) }));
+        elLatchBtn.addEventListener('click', () => updateParams({ latchedToRail: !params.latchedToRail }));
+
+        // JSON Export / Import & Standalone HTML Download
+        elExportBtn.addEventListener('click', () => {
+          const payload = JSON.stringify({ points, params }, null, 2);
+          const blob = new Blob([payload], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `coasterlab-${activePreset}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('트랙 설계 파일(JSON)을 내보냈습니다.');
+        });
+
+        document.getElementById('download-html-btn').addEventListener('click', () => {
+          const blob = new Blob([PRISTINE_HTML], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'index.html';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('단일 실행 파일(index.html)을 다운로드했습니다.');
+        });
+
+        elImportBtn.addEventListener('click', () => elImportInput.click());
+        elImportInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const parsed = JSON.parse(String(reader.result));
+              if (Array.isArray(parsed.points) && parsed.points.length >= 3) {
+                points = parsed.points;
+                track = buildTrackGeometry(points);
+                if (parsed.params) params = { ...params, ...parsed.params };
+                activePreset = 'custom';
+                renderPresetTabs();
+                renderParameterControls();
+                resetSimulation(params);
+                showToast('트랙 설계를 성공적으로 불러왔습니다.');
+              } else {
+                showToast('유효하지 않은 트랙 데이터 형식입니다.');
+              }
+            } catch {
+              showToast('JSON 파일을 읽을 수 없습니다.');
+            }
+          };
+          reader.readAsText(file);
+          e.target.value = '';
+        });
+
+        // SVG Chart Hover Probe
+        elChartSvg.addEventListener('mousemove', (e) => {
+          if (history.length === 0) return;
+          const rect = elChartSvg.getBoundingClientRect();
+          const relX = ((e.clientX - rect.left) / rect.width) * 340;
+          const tNorm = Math.max(0, Math.min(1, (relX - 34) / (340 - 44)));
+          const maxT = Math.max(2, history[history.length - 1].t);
+          const targetT = tNorm * maxT;
+          let closestIdx = 0;
+          let closestDiff = Infinity;
+          for (let i = 0; i < history.length; i++) {
+            const diff = Math.abs(history[i].t - targetT);
+            if (diff < closestDiff) {
+              closestDiff = diff;
+              closestIdx = i;
+            }
+          }
+          chartHoverIdx = closestIdx;
+          renderEnergyChart();
+        });
+        elChartSvg.addEventListener('mouseleave', () => {
+          chartHoverIdx = null;
+          renderEnergyChart();
+        });
+
+        // Canvas Pointer Interactions
+        function getCanvasLocal(e) {
+          const rect = elCanvas.getBoundingClientRect();
+          return { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
+        }
+
+        function updateCanvasCursor() {
+          if (draggingPointId || hoveredPointId) {
+            elCanvas.style.cursor = draggingPointId ? 'grabbing' : 'grab';
+          } else {
+            elCanvas.style.cursor = editMode ? 'crosshair' : 'default';
+          }
+        }
+
+        elCanvas.addEventListener('pointerdown', (e) => {
+          const { sx, sy } = getCanvasLocal(e);
+          const tr = getTransform();
+          const { wx, wy } = screenToWorld(sx, sy, tr);
+
+          const hitRadiusPx = editMode ? 14 : 10;
+          const canDragPoints = editMode || simState.status === 'ready' || simState.status === 'paused';
+
+          if (canDragPoints) {
+            for (const pt of points) {
+              const ps = worldToScreen(pt.x, pt.y, tr);
+              if (Math.hypot(ps.sx - sx, ps.sy - sy) <= hitRadiusPx) {
+                elCanvas.setPointerCapture(e.pointerId);
+                draggingPointId = pt.id;
+                selectedPointId = pt.id;
+                updateCanvasCursor();
+                renderToolbarState();
+                renderAll();
+                return;
+              }
+            }
+          }
+
+          if (editMode) {
+            const closest = findClosestArcLength(track, wx, wy);
+            if (closest.distance < 3.5) {
+              const clampedX = Math.max(4, Math.min(WORLD_WIDTH - 4, Number(wx.toFixed(1))));
+              const clampedY = Math.max(3, Math.min(WORLD_HEIGHT - 4, Number(wy.toFixed(1))));
+              const insertIdx = findBestInsertIndex(points, clampedX, clampedY);
+              const newPoint = { id: `pt-${Date.now()}`, x: clampedX, y: clampedY };
+              points.splice(insertIdx, 0, newPoint);
+              selectedPointId = newPoint.id;
+              track = buildTrackGeometry(points);
+              if (simState.status !== 'ready') resetSimulation();
+              else {
+                renderToolbarState();
+                renderAll();
+              }
+              return;
+            }
+            selectedPointId = null;
+            renderToolbarState();
+            renderAll();
+            return;
+          }
+
+          if (simState.status !== 'running') {
+            const tele = computeTelemetry(track, simState, params);
+            const cartScreen = worldToScreen(tele.x, tele.y, tr);
+            const closest = findClosestArcLength(track, wx, wy);
+            if (Math.hypot(cartScreen.sx - sx, cartScreen.sy - sy) < 28 || closest.distance < 4) {
+              elCanvas.setPointerCapture(e.pointerId);
+              scrubbingCart = true;
+              scrubToArcLength(closest.s);
+            }
+          }
+        });
+
+        elCanvas.addEventListener('pointermove', (e) => {
+          const { sx, sy } = getCanvasLocal(e);
+          const tr = getTransform();
+          const { wx, wy } = screenToWorld(sx, sy, tr);
+
+          hoverWorld = wx >= 0 && wx <= WORLD_WIDTH && wy >= 0 && wy <= WORLD_HEIGHT ? { x: wx, y: wy } : null;
+
+          if (draggingPointId) {
+            const clampedX = Math.max(3, Math.min(WORLD_WIDTH - 3, Number(wx.toFixed(1))));
+            const clampedY = Math.max(3, Math.min(WORLD_HEIGHT - 3, Number(wy.toFixed(1))));
+            points = points.map((pt) =>
+              pt.id === draggingPointId ? { ...pt, x: clampedX, y: clampedY } : pt
+            );
+            track = buildTrackGeometry(points);
+            if (simState.status !== 'ready') resetSimulation();
+            else renderAll();
+            return;
+          }
+
+          if (scrubbingCart) {
+            const closest = findClosestArcLength(track, wx, wy);
+            scrubToArcLength(closest.s);
+            return;
+          }
+
+          let foundHover = null;
+          if (editMode || simState.status === 'ready' || simState.status === 'paused') {
+            for (const pt of points) {
+              const ps = worldToScreen(pt.x, pt.y, tr);
+              if (Math.hypot(ps.sx - sx, ps.sy - sy) <= 12) {
+                foundHover = pt.id;
+                break;
+              }
+            }
+          }
+          hoveredPointId = foundHover;
+          updateCanvasCursor();
+          renderAll();
+        });
+
+        elCanvas.addEventListener('pointerup', (e) => {
+          if (draggingPointId || scrubbingCart) {
+            if (elCanvas.hasPointerCapture(e.pointerId)) {
+              elCanvas.releasePointerCapture(e.pointerId);
+            }
+          }
+          draggingPointId = null;
+          scrubbingCart = false;
+          updateCanvasCursor();
+        });
+
+        elCanvas.addEventListener('pointerleave', () => {
+          hoverWorld = null;
+          hoveredPointId = null;
+          updateCanvasCursor();
+          renderAll();
+        });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+          const tag = e.target && e.target.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+          if (e.code === 'Space') {
+            e.preventDefault();
+            togglePlay();
+          } else if (
+            (e.key === 'Delete' || e.key === 'Backspace') &&
+            editMode &&
+            selectedPointId &&
+            points.length > 3
+          ) {
+            e.preventDefault();
+            deleteSelectedPoint();
+          }
+        });
+
+        // ResizeObserver for Responsive HiDPI Canvas (rAF-deferred to avoid loop error)
+        let resizeRaf = 0;
+        const initRect = elCanvasWrap.getBoundingClientRect();
+        if (initRect.width > 0 && initRect.height > 0) {
+          canvasSize = {
+            width: Math.max(320, Math.floor(initRect.width)),
+            height: Math.max(340, Math.floor(initRect.height)),
+          };
+        }
+        const ro = new ResizeObserver((entries) => {
+          const entry = entries[entries.length - 1];
+          if (!entry) return;
+          const nextW = Math.max(320, Math.floor(entry.contentRect.width));
+          const nextH = Math.max(340, Math.floor(entry.contentRect.height));
+          if (nextW === canvasSize.width && nextH === canvasSize.height) return;
+          if (resizeRaf) cancelAnimationFrame(resizeRaf);
+          resizeRaf = requestAnimationFrame(() => {
+            resizeRaf = 0;
+            canvasSize = { width: nextW, height: nextH };
+            renderAll();
+          });
+        });
+        ro.observe(elCanvasWrap);
+
+        // Initial Render
+        renderPresetTabs();
+        renderToolbarState();
+        renderParameterControls();
+        renderAll();
+      })();
+    </script></body></html>
